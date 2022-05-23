@@ -2,7 +2,7 @@ from CSV_processing import csv_processing
 import csv
 
 def largest_num_of_neb(name):
-    array = csv_processing(array)
+    array = csv_processing(name)
     max = 0
     for elem in array:
         temp = len(elem)

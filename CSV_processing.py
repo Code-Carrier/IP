@@ -8,10 +8,8 @@ def csv_processing(name):
                 temp = csvfile.readline().split(",")
                 continue
             temp = [int(elem) for elem in temp]
-            print(temp,type(temp))
             array.append(temp)
             temp = csvfile.readline().split(",")
-        print (array)
     return array
 
 if __name__ == "__main__":
