@@ -1,12 +1,9 @@
-from TXT_processing import txt_processing
-from DATA_processing import data_processing
+from CSV_processing import csv_processing
 import csv
 
 
-def txt_to_array(name):
-    filepath = "./data/"+name+".txt"
-    array = txt_processing(filepath)
-    array = data_processing(array)
+def csv_to_array(name):
+    array = csv_processing(array)
     num = len(array)
     print(num)
     routers = [[0 for i in range(num)] for j in range(num)]
@@ -17,4 +14,4 @@ def txt_to_array(name):
 
 if __name__ == "__main__":
     name = input("请输入文件名：")
-    txt_to_array(name)
+    csv_to_array(name)

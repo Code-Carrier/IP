@@ -1,6 +1,3 @@
-from tempfile import tempdir
-from TXT_processing import txt_processing
-
 def takefirst(elem):
     return elem[0]
 

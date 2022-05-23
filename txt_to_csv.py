@@ -1,7 +1,7 @@
 from TXT_processing import txt_processing
 from DATA_processing import data_processing
 import csv
-
+# 将txt转化为csv
 
 def txt_to_csv(name):
     filepath = "./data/"+name+".txt"
