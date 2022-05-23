@@ -13,10 +13,11 @@ def renum(array,temparray):
             temp = elem
             now = now + 1
             dic[temp] = now
+            print (dic)
     for elem in array:
         elem[0] = dic[elem[0]]
         elem[1] = dic[elem[1]]
-    return array,now
+    return array,now+1
 
 def data_processing(array):
     temparray = []
