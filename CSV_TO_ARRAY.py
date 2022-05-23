@@ -5,7 +5,6 @@ import csv
 def csv_to_array(name):
     array = csv_processing(array)
     num = len(array)
-    print(num)
     routers = [[0 for i in range(num)] for j in range(num)]
     for i in range(num):
         for j in array[i]:
