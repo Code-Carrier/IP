@@ -3,7 +3,7 @@ import csv
 
 
 def csv_to_array(name):
-    array = csv_processing(array)
+    array = csv_processing(name)
     num = len(array)
     routers = [[0 for i in range(num)] for j in range(num)]
     for i in range(num):
