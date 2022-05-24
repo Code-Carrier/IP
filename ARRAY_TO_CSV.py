@@ -13,7 +13,7 @@ def array_to_csv(name):
                 temp.append(j)
         array.append(temp)
         temp = []
-    with open ("./data/"+name+".csv","w",encoding ="utf-8",newline="") as csvfile:
+    with open ("./data/"+name+"_total.csv","w",encoding ="utf-8",newline="") as csvfile:
         writer = csv.writer(csvfile)
         writer.writerows(array)
 
