@@ -4,7 +4,7 @@
 #include <stdlib.h>
 
 #define SITE_NUM 10000 //节点总数量
-#define GRADE 3        //层级数量，即共分几个层级。
+#define GRADE 3        //层级数量，即共分几个层级
 #define COLOR_NUM 108
 //色块总数量，为色块基础数量*2^(GRADE-1)，建议设置为108，一块ip数量600个，一个节点分配4块，共2400个。
 //此时共用去64800个IP，剩余736个可以留作所有路由器的备用IP，以防连接人数超过2400。
@@ -17,23 +17,33 @@
 struct router
 {
     int id;                     //编号
+    int neb_num;                //邻居数量
     int neb[NEB_NUM];           //邻居数组
     int self_color[SELF_COLOR]; //自己选的色块编号
     int color[COLOR_NUM];       //颜色数组
 };
 
 //初始化router变量
-int init(struct router *p, int id)
+int init(struct router *p, int id, int neb[])
 {
     p->id = id;
-    for (int i = 0; i < SELF_COLOR; i++)
+    init_array(p->color, 1, SELF_COLOR, -1);
+    init_array(p->color, 1, COLOR_NUM, 0);
+    init_array(p->neb, 1, NEB_NUM, -1);
+    int i = 0;
+    for (; i < NEB_NUM; i++)
     {
-        p->self_color[i] = -1;
+        if (neb[i] < 0)
+        { //其中neb数组中-1为无效数据，所有有效数据都排在无效数据之前
+            break;
+        }
+        else
+        {
+            p->neb[i] = neb[i];
+        }
     }
-    for (int i = 0; i < COLOR_NUM; i++)
-    {
-        p->color[i] = 0;
-    }
+    p->neb_num = i;
+    qsort(p->neb, p->neb_num, sizeof(int), cmp_neb); //将neb数组排序，方便后续可以折半查找（也可以用hash,让查找更快）
     return 0;
 }
 
@@ -66,22 +76,45 @@ int send_message_to_all_neb(int self_id, int neb[], int message[], int flag)
     }
 }
 
-//初始化数组
-int init_array(int *array, int x, int y)
+//初始化数组为val值
+int init_array(int *array, int x, int y, int val)
 {
     for (int i = 0; i < x; i++)
     {
         for (int j = 0; j < y; j++)
         {
-            *(array + (y * i) + j) = -1;
+            *(array + (y * i) + j) = val;
         }
     }
 }
 
-//从每个邻居那里获得邻居数列
-int rec_neblist_from_every_neb(int self_id, int neb[], int neb_neb[][NEB_NUM])
+//查找val值在neb中是否存在
+int id_in_neb(int val, int neb[], int neb_num)
 {
-    for (int i = 0, rec_id, mark[NEB_NUM] = {0}; i < NEB_NUM; i++)
+    int low = 0, high = neb_num, temp;
+    while (low <= high)
+    {
+        temp = (low + high) / 2;
+        if (neb[temp] == val)
+        {
+            return 1;
+        }
+        else if (neb[temp] < val)
+        {
+            low = temp + 1;
+        }
+        else
+        {
+            high = temp - 1;
+        }
+    }
+    return 0;
+}
+
+//从每个邻居那里获得邻居数列
+int rec_neblist_from_every_neb(int self_id, int neb_num, int neb[], int neb_neb[][NEB_NUM])
+{
+    for (int i = 0, rec_id, mark[SITE_NUM] = {0}, x_count = 0; i < NEB_NUM; i++)
     {
         rec_id = neb[i];
         if (rec_id < 0)
@@ -90,16 +123,29 @@ int rec_neblist_from_every_neb(int self_id, int neb[], int neb_neb[][NEB_NUM])
         }
         else
         {
+            //两重循环是为了实现限时等待以及尽量等待最少时间
             for (int timeout = TIMEOUT; mark[rec_id] == 0 && timeout < CEILING; timeout *= 2)
             {
                 for (int time = 0, ok = 0; mark[rec_id] == 0 && time < timeout; time++)
                 {
                     int message[5000];
+                    init_array(message, 1, 5000, -1);
                     ok = get_message(self_id, rec_id, message, 0);
                     if (ok == 1)
                     {
                         mark[rec_id] = 1;
-                        memcpy(neb_neb[rec_id], message, sizeof(int) * NEB_NUM);
+                        // neb_neb[*][0]存放id编号，[*][1]存放邻居总数量，从[*][2]开始真正存放邻居编号。
+                        // 这可能会占用2个存放邻居编号的空间，但只要设定的NEB_NUM足够大就不会影响。
+                        neb_neb[x_count][0] = rec_id;
+                        neb_neb[x_count][1] = 0;
+                        for (int j = 0, temp = message[j], y_count = 2; temp > 0; j++, temp = message[j])
+                        {
+                            if (id_in_neb(temp, neb, neb_num))
+                            {
+                                neb_neb[x_count][1]++;
+                                neb_neb[x_count][y_count++] = temp;
+                            }
+                        }
                         break;
                     }
                     else
@@ -137,8 +183,9 @@ int add_wait(int self_priority[], int neb_priority[], int wait[][4], int self_id
 //设置等待队列
 int set_wait(int self_id, int neb[], int self_priority[], int wait[][4])
 {
+    //从每个邻居i那里获得i的优先级数组,mark为标记数组
     for (int i = 0, rec_id, mark[NEB_NUM] = {0}; i < NEB_NUM; i++)
-    { //从每个邻居i那里获得i的优先级数组,mark为标记数组
+    {
         rec_id = neb[i];
         if (rec_id < 0)
         {
@@ -203,72 +250,6 @@ int wait_for_all_id_in_wait_ok(int self_id, int wait[][4], int color[], int grad
     return 0;
 }
 
-int cmp_wel(void *a,void *b){
-
-}
-
-// welch_powell算法，集中式算法计算分布色块的近似算法,未完成
-int welch_powell(int neb_neb[][NEB_NUM], int neb_num)
-{
-    int color = 0;
-    int mark[NEB_NUM];
-    init_array(mark, 1, NEB_NUM);
-    int sort_array[NEB_NUM][2];
-    init_array(sort_array, NEB_NUM, 2);
-    int count = 0;
-    for (int i = 0; i < NEB_NUM; i++)
-    {
-        if (neb_neb[i][0]<0){
-            continue;
-        }
-        sort_array[count][0] = i;
-        sort_array[count][1] =0;
-        for(int j = 0;j<NEB_NUM;j++){
-            if (neb_neb[i][j]< 0){
-                break;
-            }
-            sort_array[count][1] ++;
-        }
-        count ++;
-    }
-    qsort(sort_array,count,sizeof(int[2]),cmp_wel);
-    int temp_mark[NEB_NUM] = {0};
-    while()
-
-
-    return color;
-}
-
-//计算优先级
-int caculate_priority(int neb_neb[][NEB_NUM])
-{
-    int count = 0;
-    for (int i = 0; i < NEB_NUM; i++)
-    {
-        if (neb_neb[i][0] < 0)
-        {
-            break;
-        }
-        count++;
-    }
-    int color = welch_powell(neb_neb, count); //使用welch powell算法
-    return color + 1;
-}
-
-//计算色块层级，如果自身的色块需求大于定义的最大色块数量，则返回最低层级：1。
-int caculate_grade(int self_id, int color_num)
-{
-    int grade = COLOR_NUM / pow(2, GRADE - 1);
-    if (color_num < COLOR_NUM)
-    {
-        return GRADE - ceil(log((color_num / grade) + 1) / log(2));
-    }
-    else
-    {
-        return 1;
-    }
-}
-
 // qsort排序比较大小函数参数
 int cmp_wait(const void *a, const void *b)
 {
@@ -283,6 +264,86 @@ int cmp_wait(const void *a, const void *b)
     else
     {
         return *((int *)a + 2) - *((int *)b + 2);
+    }
+}
+
+int cmp_neb(void *a, void *b)
+{
+    return *(int *)a - *(int *)b;
+}
+
+int cmp_wel(void *a, void *b)
+{
+    if (*((int *)a + 1) != *((int *)b + 1))
+    {
+        return *((int *)a + 1) - *((int *)b + 1);
+    }
+    else
+    {
+        return *(int *)a - *(int *)b;
+    }
+}
+
+// welch_powell算法，集中式算法计算分布色块的近似算法
+int welch_powell(int neb_neb[][NEB_NUM], int neb_num)
+{
+    int color = -1;
+    //邻居数量多的节点在排序放在数组前面
+    qsort(neb_neb, neb_num, sizeof(int[NEB_NUM]), cmp_wel);
+    int mark[NEB_NUM];
+    init_array(mark, 1, NEB_NUM, -1);
+    int temp_mark[NEB_NUM];
+    init_array(temp_mark, 1, NEB_NUM, -1);
+    int map[SITE_NUM];
+    init_array(map, 1, SITE_NUM, -1);
+    for (int i = 0; i < neb_num; i++)
+    {
+        map[neb_neb[i][0]] = i;
+    }
+    int count = -1;
+    while (count < neb_num)
+    {
+        memcpy(temp_mark, mark, sizeof(int));
+        color++;
+        for (int i = 0; i < neb_neb; i++)
+        {
+            if (temp_mark[i] < 0)
+            {
+                mark[i] = color;
+                temp_mark[i] = color;
+                count++;
+                for (int j = 2; j < NEB_NUM; j++)
+                {
+                    if (neb_neb[i][j] < 0)
+                    {
+                        break;
+                    }
+                    temp_mark[map[neb_neb[i][j]]] = 0;
+                }
+            }
+        }
+    }
+    return color;
+}
+
+//计算优先级
+int caculate_color_count(int neb_num, int neb_neb[][NEB_NUM])
+{
+    int color = welch_powell(neb_neb, neb_num); //使用welch powell算法
+    return color + 1;
+}
+
+//计算色块层级，如果自身的色块需求大于定义的最大色块数量，则返回最低层级：1。
+int caculate_grade(int self_id, int color_num)
+{
+    int grade = COLOR_NUM / pow(2, GRADE - 1);
+    if (color_num < COLOR_NUM)
+    {
+        return GRADE - ceil(log((color_num / grade) + 1) / log(2));
+    }
+    else
+    {
+        return 1;
     }
 }
 
@@ -318,13 +379,13 @@ int distribute_color(int self_id, int neb[], int self_color[], int color[], int 
 {
     int ok = 0;
     int turn = pow(2, GRADE - 1);
-    int per_select_num = pow(2, grade - 1); //当前节点每轮应当选择的色块数量。
+    int per_select_num = pow(2, grade - 1); //当前节点每轮应当选择的色块数量
     while (ok < turn)
     {
         wait_for_all_id_in_wait_ok(self_id, wait, color, grade); //等待wait数组中的所有节点都分配结束一轮
         int color_message[COLOR_NUM];
-        init_array(color_message, 1, COLOR_NUM); //初始化消息队列
-        color_message[0] = per_select_num;       // color_message[0]存储的是当前节点的per_select_num，代表该节点一次分配grade个色块。
+        init_array(color_message, 1, COLOR_NUM, -1); //初始化消息队列
+        color_message[0] = per_select_num;           // color_message[0]存储的是当前节点的per_select_num，代表该节点一次分配grade个色块
         for (int i = 0; i < per_select_num; ok++, i++)
         {
             int temp_color = select_color(color);
@@ -332,7 +393,7 @@ int distribute_color(int self_id, int neb[], int self_color[], int color[], int 
             self_color[ok] = temp_color;
             color_message[ok + 1] = temp_color;
         }
-        //将自己这一轮分配选的色块广播给每个邻居,color_message[0]存储的是当前节点的per_select_num，代表该节点一次分配per_select_num个色块。
+        //将自己这一轮分配选的色块广播给每个邻居,color_message[0]存储的是当前节点的per_select_num，代表该节点一次分配per_select_num个色块
         send_message_to_all_neb(self_id, neb, color_message, 2); //标记位为2表示当前发送的是色块信息
     }
 }
@@ -355,15 +416,15 @@ int run(struct router *p)
 {
     send_message_to_all_neb(p->id, p->neb, p->neb, 0);                     //给每个邻居发送一份自己的邻居数组副本
     int neb_neb[NEB_NUM][NEB_NUM];                                         //建立邻居关系图
-    init_array(neb_neb, NEB_NUM, NEB_NUM);                                 //初始化邻居关系图
-    rec_neblist_from_every_neb(p->id, p->neb, neb_neb);                    //从每个邻居i那里获得i的邻居节点数组，存放在neb_neb中
-    int color_count = caculate_color_count(neb_neb);                       //计算所需颜色块数量
+    init_array(neb_neb, NEB_NUM, NEB_NUM, -1);                             //初始化邻居关系图
+    rec_neblist_from_every_neb(p->id, p->neb_num, p->neb, neb_neb);        //从每个邻居i那里获得i的邻居节点数组，存放在neb_neb中
+    int color_count = caculate_color_count(p->neb_num, neb_neb);           //计算所需颜色块数量
     int priority_message[3] = {color_count, len(p->neb), p->id};           //建立优先级数组，包含颜色块数量，邻居数量，自身编号
     send_message_to_all_neb(p->id, p->neb, priority_message, 1);           //向每个邻居发送自己的优先级数组
     int wait[NEB_NUM][4];                                                  //建立等待队列
-    init_array(wait, NEB_NUM, 4);                                          //初始化等待队列
+    init_array(wait, NEB_NUM, 4, -1);                                      //初始化等待队列
     set_wait(p->id, p->neb, priority_message, wait);                       //根据自身优先级与邻居优先级设置等待数组
-    qsort(wait, NEB_NUM, sizeof(int[4]), cmp_wait);                        //wait数组排序，保证优先级最高的在队首
+    qsort(wait, NEB_NUM, sizeof(int[4]), cmp_wait);                        // wait数组排序，保证优先级最高的在队首
     int grade = caculate_grade(p->id, priority_message[0]);                //计算自己的色块层级，GRADE为最高层级，一次性分配最多的色块
     reset_wait(wait);                                                      //将wait数组调整一下，此时已经不需要其中的优先级信息
     distribute_color(p->id, p->neb, p->self_color, p->color, wait, grade); //开始给自己分配色块
@@ -375,9 +436,10 @@ int run(struct router *p)
 int main()
 {
     struct router routers[SITE_NUM];
+    int neb[SITE_NUM][NEB_NUM]; //根据文件导入
     for (int i = 0; i < SITE_NUM; i++)
     {
-        init(&routers[i], i);
+        init(&routers[i], i, neb[i]);
     }
     for (int i = 0; i < SITE_NUM; i++)
     {
