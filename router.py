@@ -1,10 +1,16 @@
+from multiprocessing.connection import wait
 from time import time
 from random import *
 from queue import Queue
 from math import floor
 from Welch_Powell import welch_powell
-__colornum__ = 100
+__colornum__ = 8
 __selfcolornum__ = 4
+__pfirst__ = 2
+__psecond__ = 0.6
+__pthird__ = 0.3
+__pforth__ = 0.1
+
 class Router(object):
 
     def __init__(self,id,neb_id_array):
@@ -26,13 +32,21 @@ class Router(object):
         self.count = 0
         self.turn = 0
         self.mark = [0 for i in range(len(self.neb))]
+        self.copy_wait_high = []
+        self.copy_wait_low = []
 
     def init_again(self):
-        self.init_array(self.priority,3,0,-1)
         self.init_array(self.color,__colornum__,0,0)
-        self.init_array(self.choose,__selfcolornum__,0,-1)
-        self.wait.clear()
-        self.neb_neb.clear()
+        self.init_array(self.first_color,__colornum__,0,0)
+        self.choose.clear()
+        self.temp_high.clear()
+        self.temp_low.clear()
+        self.copy_wait_array(self.copy_wait_high,self.wait_high,0)
+        self.copy_wait_array(self.copy_wait_low,self.wait_low,0)
+        self.temp_high.extend(self.wait_high)
+        self.temp_low.extend(self.wait_low)
+        self.turn = 0
+        self.count = 0
 
     def init_array(self,array,x,y,val):
         if y == 0:
@@ -82,19 +96,25 @@ class Router(object):
                     self.init_array(self.mark,1,0,0)
             return True
         if flag == 2:
+            if self.mark[self.dic[rec_id]] == 0:
+                self.first_color[temp_data[0]] += 1
+                self.mark[self.dic[rec_id]] = 1
             ok = self.set_color(rec_id,temp_data)
             return ok
 
     def caculate_priorty(self):
         self.neb_neb.sort()
-        for i in range(len(self.neb_neb):
-            self.neb_neb[i]
-            for elem2 in elem:
-                if elem2 not in self.neb:
-                    elem.remove(elem2)
-                else:
-                    elem2 = self.dic[elem2]
-        self.priority[0] = welch_powell(self.neb_neb)
+        for i in range(len(self.neb_neb)):
+            self.neb_neb[i] = self.neb_neb[i][1:]
+            temp_list = []
+            for elem in self.neb_neb[i]:
+                if elem not in self.neb:
+                    temp_list.append(elem)
+            for elem in temp_list:
+                self.neb_neb[i].remove(elem)
+            for j in range(len(self.neb_neb[i])):
+                self.neb_neb[i][j] = self.dic[self.neb_neb[i][j]]
+        self.priority[0] = welch_powell(self.neb_neb) + 1
         if self.priority[0] <= __colornum__/__selfcolornum__:
             self.grade = 2
         elif self.priority[0] <= 2*__colornum__/__selfcolornum__:
@@ -110,21 +130,48 @@ class Router(object):
         elif priority[0] == self.priority[0]:
             if priority[1] > self.priority[1]:
                 self.wait_high.append(priority)
-            elif priority[0] == self.priority[0] & priority[1] == self.priority[1]:
+            elif priority[1] == self.priority[1]:
                 if priority[2] > self.priority[2]:
                     self.wait_high.append(priority)
                 else:
                     self.wait_low.append(priority)
+            else:
+                self.wait_low.append(priority)
+        else:
+            self.wait_low.append(priority)
 
     def set_wait_array(self):
         self.wait_high.sort()
         self.wait_low.sort()
-        self.copy_wait_array(self.wait_high,self.temp_high)
-        self.copy_wait_array(self.wait_low,self.temp_low)
+        self.copy_wait_array(self.wait_high,self.copy_wait_high,1)
+        self.copy_wait_array(self.wait_low,self.copy_wait_low,1)
+        self.copy_wait_array(self.wait_high,self.temp_high,0)
+        self.copy_wait_array(self.wait_low,self.temp_low,0)
+        self.wait_high.clear()
+        self.wait_low.clear()
+        self.wait_high.extend(self.temp_high)
+        self.wait_low.extend(self.temp_low)
+        
 
-    def copy_wait_array(self,src,aid):
-        for elem in src:
-            aid.append(elem[2])
+    def remove_neb_who_finished(self,id):
+        if id in self.wait_high:
+            self.wait_high.remove(id)
+        if id in self.wait_low:
+            self.wait_low.remove(id)
+        if id in self.temp_high:
+            self.temp_high.remove(id)
+        if id in self.temp_low:
+            self.temp_low.remove(id)
+
+    def copy_wait_array(self,src,aid,flag):
+        if flag == 0:
+            for elem in src:
+                aid.append(elem[2])
+        if flag == 1:
+            for elem in src:
+                temp = []
+                temp.extend(elem)
+                aid.append(temp)
 
     def set_color(self,id,color_array):
         if id in self.temp_high:
@@ -161,7 +208,10 @@ class Router(object):
                         break
             if case == 1:
                 if self.choose:
-                    return True,1
+                    temp = [self.choose[0]]
+                    temp.extend(self.current_choose)
+                    self.current_choose = temp
+                    return True,__selfcolornum__
                 else:
                     return False,0
             self.count = pow(2,self.grade)
@@ -169,11 +219,15 @@ class Router(object):
             temp_color = 0
             while(temp_now < self.count):
                 for i in range(len(self.color)):
+                    if i in self.choose:
+                        continue
                     if self.color[i] == temp_color:
                         self.choose.append(i)
+                        self.current_choose.append(i)
                         temp_now += 1
                         self.color[i] += 1
-                        break
+                        if(temp_now == self.count):
+                            break
                     else:
                         continue
                 temp_color += 1
@@ -181,12 +235,12 @@ class Router(object):
                 temp = [self.choose[0]]
                 temp.extend(self.current_choose)
                 self.current_choose = temp
-                self.turn == 1
-                self.copy_wait_array(self.wait_high,self.temp_high)
-                return True,len(self.current_choose)
+                self.turn = 1
+                self.temp_high.extend(self.wait_high)
+                return True,len(self.current_choose) - 1
         if self.turn == 1:      #1说明该节点本轮已经分配结束
             if self.temp_low:
                 return False,0
-            self.turn == 0
-            self.copy_wait_array(self.wait_low,self.temp_low)
-            self.select_color(case)
+            self.turn = 0
+            self.temp_low.extend(self.wait_low)
+            return self.select_color(case)
