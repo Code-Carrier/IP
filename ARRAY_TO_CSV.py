@@ -1,4 +1,3 @@
-from numpy import array
 from CSV_TO_ARRAY import csv_to_array
 import csv
 
@@ -16,7 +15,6 @@ def array_to_csv(name):
     with open ("./data/"+name+"_total.csv","w",encoding ="utf-8",newline="") as csvfile:
         writer = csv.writer(csvfile)
         writer.writerows(array)
-
 
 if __name__ == "__main__":
     name = input("请输入文件名：")
