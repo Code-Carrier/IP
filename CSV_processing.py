@@ -12,6 +12,7 @@ def csv_processing(name):
             temp = csvfile.readline().split(",")
     return array
 
+
 if __name__ == "__main__":
     name = input("请输入文件名：")
     csv_processing(name)

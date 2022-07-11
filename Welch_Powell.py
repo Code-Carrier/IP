@@ -1,4 +1,4 @@
-from initial import initArray
+from CSV_processing import csv_processing
 def welch_powell(routers):
     color = 0
     wait = []
@@ -16,11 +16,13 @@ def welch_powell(routers):
             wait.remove(now)
             for elem in routers[now]:
                 if (elem in now_wait):
-                    now_wait.remove(i)
+                    now_wait.remove(elem)
         color = color + 1
-    print (color)
     return color
 
 if __name__ == "__main__":
-    __rnum__,lines,routers = initArray()
-    welch_powell(routers)
+    name = input("输入文件名：")
+    name += "_total"
+    routers = csv_processing(name)
+    color = welch_powell(routers)
+    print(color)

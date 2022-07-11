@@ -55,11 +55,17 @@ class Router(object):
             return self.priority
         if flag == 2:
             return self.current_choose
+    
+    #输出检测
+    def send_choose(self):
+        return self.choose
 
     def recieve_message(self,flag,rec_id,temp_data):
         if flag == 0:
             if self.mark[self.dic[rec_id]] == 0:
-                self.neb_neb.attend([self.dic[rec_id]].extend(temp_data))
+                temp = [self.dic[rec_id]]
+                temp.extend(temp_data)
+                self.neb_neb.append(temp)
                 self.count += 1
                 if self.count == len(self.neb):
                     self.caculate_priorty()
@@ -81,10 +87,13 @@ class Router(object):
 
     def caculate_priorty(self):
         self.neb_neb.sort()
-        for elem in self.neb_neb:
-            elem = elem[1:]
+        for i in range(len(self.neb_neb):
+            self.neb_neb[i]
             for elem2 in elem:
-                elem2 = self.dic[elem2]
+                if elem2 not in self.neb:
+                    elem.remove(elem2)
+                else:
+                    elem2 = self.dic[elem2]
         self.priority[0] = welch_powell(self.neb_neb)
         if self.priority[0] <= __colornum__/__selfcolornum__:
             self.grade = 2
@@ -101,7 +110,7 @@ class Router(object):
         elif priority[0] == self.priority[0]:
             if priority[1] > self.priority[1]:
                 self.wait_high.append(priority)
-            elif priority[0] == self.priority[0]&priority[1] == self.priority[1]:
+            elif priority[0] == self.priority[0] & priority[1] == self.priority[1]:
                 if priority[2] > self.priority[2]:
                     self.wait_high.append(priority)
                 else:
@@ -122,8 +131,9 @@ class Router(object):
             self.temp_high.remove(id)
         if id in self.temp_low:
             self.temp_low.remove(id)
-        if self.choose[0] == color_array[0]:
-            return False
+        if self.choose:
+            if self.choose[0] == color_array[0]:
+                return False
         for i in range(1,len(color_array)):
             self.color[color_array[i]] += 1
         return True
@@ -131,27 +141,29 @@ class Router(object):
     def select_color(self,case):
         if self.turn == 0:      #0说明该节点本轮尚未分配过
             if self.temp_high:
-                return False
+                return False,0
             self.current_choose.clear()
-            if self.choose:
+            if not self.choose:
                 for i in range(len(self.color)):
                     if self.color[i] == 0:
                         self.choose.append(i)
                         self.current_choose.append(i)
                         self.color[i] += 1
                         self.first_color[i] += 1
-            if self.choose:
+                        break
+            if not self.choose:
                 for i in range(len(self.first_color)):
                     if self.first_color[i] == 0:
                         self.choose.append(i)
                         self.current_choose.append(i)
                         self.color[i] += 1
                         self.first_color[i] += 1
-            if case == '1':
+                        break
+            if case == 1:
                 if self.choose:
-                    return False,0
-                else:
                     return True,1
+                else:
+                    return False,0
             self.count = pow(2,self.grade)
             temp_now = len(self.current_choose)
             temp_color = 0
@@ -161,11 +173,14 @@ class Router(object):
                         self.choose.append(i)
                         temp_now += 1
                         self.color[i] += 1
+                        break
                     else:
                         continue
                 temp_color += 1
             if temp_now == self.count:
-                self.current_choose = [self.choose[0]].extend(self.current_choose)
+                temp = [self.choose[0]]
+                temp.extend(self.current_choose)
+                self.current_choose = temp
                 self.turn == 1
                 self.copy_wait_array(self.wait_high,self.temp_high)
                 return True,len(self.current_choose)

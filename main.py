@@ -26,20 +26,19 @@ def main(routers):
             lrouter[x].recieve_message(1,i,temp_list)
     
     case = "yes"
-    while(case != "q"): 
-        case = input("选择使用的方法--1:只分配一个色块,剩余用随机分配. 2:分配四个色块. 退出请输入”q”")
+    while(case):
+        case = input("选择使用的方法--1:只分配一个色块,剩余用随机分配. 2:分配四个色块. 其余任意键退出")
+        case = int(case)
         __colornum__ = 4
-        if case != '1' & case != '2' & case != 'q':
-            print("请重新输入！")
-            continue
-        if case == 'q':
-            continue
-        
+        if case != 1 & case != 2:
+            break
+
         wait_for_update_from_their_neb = []
         right = [0 for i in range(__rnum__)]
         nowtime = 0
         #每轮所有节点都应当判断自己本轮是否可以参与分配色块
         go = True
+        correct = 0
         while go:
             nowtime = nowtime + 1
             for i in range(__rnum__):
@@ -69,7 +68,7 @@ def main(routers):
         #输出本次分配所有节点的第一个色块号中的最大块号
         max_color = 0
         for i in range(__rnum__):
-            temp = lrouter[i].choose_color()
+            temp = lrouter[i].send_choose()
             if max_color < temp[0]:
                 max_color = temp[0]
         print("共需要 ",max_color+1," 个颜色。")
@@ -81,10 +80,8 @@ def main(routers):
 if __name__ == "__main__":
     name = input("输入文件名：")
     while(name):
-        name += "_total.csv"
-    routers = csv_processing(name)
-    
-    f = xlwt.Workbook(encoding = 'utf-8')
-    sheet1 = f.add_sheet(name,cell_overwrite_ok=True) #创建sheet    
-    main(routers,sheet1)
-    f.save("./output/output.xls")
+        name += "_total"
+        routers = csv_processing(name)
+        ok = main(routers)
+        print(ok)
+        
