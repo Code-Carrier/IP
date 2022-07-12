@@ -4,7 +4,7 @@ from random import *
 from queue import Queue
 from math import floor
 from Welch_Powell import welch_powell
-__colornum__ = 8
+__colornum__ = 100
 __selfcolornum__ = 4
 __pcolor__ = [205,100,50,10]     #千分制
 
