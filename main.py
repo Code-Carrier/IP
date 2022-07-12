@@ -2,7 +2,7 @@ from router import Router
 from CSV_processing import csv_processing
 import xlwt
 
-def main(routers):
+def main(routers,sheet1):
     __rnum__ = len(routers)
     #建立路由器结点数组
     lrouter = []
@@ -22,14 +22,15 @@ def main(routers):
             lrouter[x].recieve_message(1,i,temp_list)
     
     case = "yes"
+    sheet_line = 1
+    case = input("选择使用的方法--1:只分配一个色块,剩余用随机分配. 2:分配四个色块. 回车键退出")
+    sheet1.write(sheet_line,0,case)
+    sheet_line += 1
     while(case):
-        case = input("选择使用的方法--1:只分配一个色块,剩余用随机分配. 2:分配四个色块. 其余任意键退出")
         case = int(case)
         __colornum__ = 4
         if (case != 1) & (case != 2):
-            print("now")
             break
-
         wait_for_update_from_their_neb = []
         right = [0 for i in range(__rnum__)]
         nowtime = 0
@@ -41,7 +42,7 @@ def main(routers):
             wait_for_update_because_finish = []
             for i in range(__rnum__):
                 if right[i] < __colornum__:
-                    ok,count = lrouter[i].select_color(case)
+                    ok,count = lrouter[i].select_turn(case)
                 else:
                     continue
                 if ok:
@@ -50,7 +51,6 @@ def main(routers):
                     if right[i] >= __colornum__:
                         correct = correct + 1
                         wait_for_update_because_finish.append(i)
-
 
             #每轮分配完成后应当更新所有节点的等待队列
             for elem in wait_for_update_from_their_neb:
@@ -76,17 +76,33 @@ def main(routers):
             temp = lrouter[i].send_choose()   
             if temp[0] not in temp_list:
                 temp_list.append(temp[0])
+        
         print("共需要 ",len(temp_list)," 个颜色。")
+        
         for i in range(__rnum__):
+            temp_list = lrouter[i].send_choose()
+            sheet1.write(sheet_line,0,i)
+            for j in range(len(temp_list)):
+                sheet1.write(sheet_line,j+1,temp_list[j])
+            sheet_line += 1
             lrouter[i].init_again()
         nowtime = 0
-    case = input("选择使用的方法--1:只分配一个色块,剩余用随机分配. 2:分配四个色块. 其余任意键退出")
+        case = input("选择使用的方法--1:只分配一个色块,剩余用随机分配. 2:分配四个色块. 回车键退出")
+        sheet1.write(sheet_line,0,case)
+        sheet_line += 1
+
+
 
 if __name__ == "__main__":
     name = input("输入文件名：")
+    f = xlwt.Workbook(encoding = 'utf-8')
     while(name):
+        sheet1 = f.add_sheet(name,cell_overwrite_ok=True) #创建sheet
         name += "_total"
         routers = csv_processing(name)
-        ok = main(routers)
+        ok = main(routers,sheet1)
         print(ok)
-        name = input("输入文件名：")    
+        name = input("输入文件名：")
+    f.save("./output/"+name+"_output.xls")
+    
+    

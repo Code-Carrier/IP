@@ -6,10 +6,7 @@ from math import floor
 from Welch_Powell import welch_powell
 __colornum__ = 8
 __selfcolornum__ = 4
-__pfirst__ = 2
-__psecond__ = 0.6
-__pthird__ = 0.3
-__pforth__ = 0.1
+__pcolor__ = [205,100,50,10]     #千分制
 
 class Router(object):
 
@@ -18,9 +15,9 @@ class Router(object):
         self.neb=neb_id_array   #邻居
         self.dic={}             #邻居编号重映射字典
         self.priority=[-1,-1,-1]     #自己的优先级,分别为id，邻居数量，优先级
-        self.choose= []                 #自己选的色块编号
-        self.color=[0 for i in range(__colornum__)]         #颜色数组
-        self.first_color=[0 for i in range(__colornum__)]   #专门每个节点的第一个颜色块
+        self.choose= []              #自己选的色块编号
+        self.color={}           #颜色字典，key为色块号，val为当前key色块已被分配的程度
+        self.init_color_dic()
         #以下数据是因为代码模拟，数据必须要存放在类里面，实际中是临时数据。
         self.grade = 0          #自己的层级
         self.wait_high = []
@@ -36,8 +33,7 @@ class Router(object):
         self.copy_wait_low = []
 
     def init_again(self):
-        self.init_array(self.color,__colornum__,0,0)
-        self.init_array(self.first_color,__colornum__,0,0)
+        self.init_color_dic()
         self.choose.clear()
         self.temp_high.clear()
         self.temp_low.clear()
@@ -55,6 +51,10 @@ class Router(object):
         for i in range(x):
             for j in range(y):
                 array[i][j]=val
+
+    def init_color_dic(self):
+        for i in range(__colornum__):
+            self.color[i] = 0
 
     def set_dic(self):
         temp = 0
@@ -96,9 +96,6 @@ class Router(object):
                     self.init_array(self.mark,1,0,0)
             return True
         if flag == 2:
-            if self.mark[self.dic[rec_id]] == 0:
-                self.first_color[temp_data[0]] += 1
-                self.mark[self.dic[rec_id]] = 1
             ok = self.set_color(rec_id,temp_data)
             return ok
 
@@ -178,69 +175,62 @@ class Router(object):
             self.temp_high.remove(id)
         if id in self.temp_low:
             self.temp_low.remove(id)
-        if self.choose:
-            if self.choose[0] == color_array[0]:
-                return False
+        if color_array[0] == 0:
+            if self.choose:    
+                if self.choose[0] == color_array[1]:
+                    return False            
         for i in range(1,len(color_array)):
-            self.color[color_array[i]] += 1
+            now_color = color_array[0] + i - 1
+            self.color[color_array[i]] += __pcolor__[now_color]
         return True
 
-    def select_color(self,case):
+    def select_turn(self,case):
         if self.turn == 0:      #0说明该节点本轮尚未分配过
             if self.temp_high:
                 return False,0
             self.current_choose.clear()
-            if not self.choose:
-                for i in range(len(self.color)):
-                    if self.color[i] == 0:
-                        self.choose.append(i)
-                        self.current_choose.append(i)
-                        self.color[i] += 1
-                        self.first_color[i] += 1
-                        break
-            if not self.choose:
-                for i in range(len(self.first_color)):
-                    if self.first_color[i] == 0:
-                        self.choose.append(i)
-                        self.current_choose.append(i)
-                        self.color[i] += 1
-                        self.first_color[i] += 1
-                        break
+            now_color = len(self.choose)
+            self.current_choose.append(now_color)
+            temp_color = self.select_color(now_color)
+            self.choose.append(temp_color)
+            self.current_choose.append(temp_color)
+            now_color += 1
             if case == 1:
-                if self.choose:
-                    temp = [self.choose[0]]
-                    temp.extend(self.current_choose)
-                    self.current_choose = temp
+                if now_color >= 1:
                     return True,__selfcolornum__
                 else:
                     return False,0
             self.count = pow(2,self.grade)
-            temp_now = len(self.current_choose)
-            temp_color = 0
+            temp_now = len(self.current_choose) - 1
             while(temp_now < self.count):
-                for i in range(len(self.color)):
-                    if i in self.choose:
-                        continue
-                    if self.color[i] == temp_color:
-                        self.choose.append(i)
-                        self.current_choose.append(i)
-                        temp_now += 1
-                        self.color[i] += 1
-                        if(temp_now == self.count):
-                            break
-                    else:
-                        continue
-                temp_color += 1
-            if temp_now == self.count:
-                temp = [self.choose[0]]
-                temp.extend(self.current_choose)
-                self.current_choose = temp
-                self.turn = 1
-                self.temp_high.extend(self.wait_high)
-                return True,len(self.current_choose) - 1
+                temp_color = self.select_color(now_color)
+                self.choose.append(temp_color)
+                self.current_choose.append(temp_color)
+                temp_now += 1
+                now_color += 1
+            self.turn = 1
+            self.temp_high.extend(self.wait_high)
+            return True,len(self.current_choose) - 1
         if self.turn == 1:      #1说明该节点本轮已经分配结束
             if self.temp_low:
                 return False,0
             self.turn = 0
             self.temp_low.extend(self.wait_low)
-            return self.select_color(case)
+            return self.select_turn(case)
+
+    def select_color(self,now_color):
+        temp = sorted(self.color.items(),key = lambda kv:(kv[1], kv[0]))
+        if now_color == 0:
+            for item in temp:
+                if item[1]%10 != 0:
+                    continue
+                else:
+                    self.color[item[0]] += __pcolor__[0]
+                    return item[0]
+        else:
+            for item in temp:
+                if item[0] not in self.choose:
+                    self.color[item[0]] += __pcolor__[now_color]
+                    return item[0]
+                else:
+                    continue
